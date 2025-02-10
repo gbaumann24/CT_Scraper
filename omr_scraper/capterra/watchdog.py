@@ -4,12 +4,9 @@ import time
 import sys
 import os
 import itertools
-import threading
 from datetime import datetime
-import smtplib
-from email.message import EmailMessage
 
-# --- Configuration: Script Names and Heartbeat Files ---
+# --- Script Names and Heartbeat Files ---
 PRODUCT_SCRAPER_SCRIPT = "scrape_capterra_products_seleium_prod.py"
 REVIEW_SCRAPER_SCRIPT  = "scraping_reviews_4.0_prod.py"
 
@@ -18,14 +15,6 @@ REVIEW_HEARTBEAT_FILE  = "heartbeat_reviews.txt"
 
 # Threshold in seconds: if heartbeat is older than this, consider the scraper stalled.
 HEARTBEAT_THRESHOLD = 300  # 5 minutes
-
-# --- Email Settings ---
-# Update these with your actual email credentials.
-EMAIL_ADDRESS = "your_hotmail_address@hotmail.com"  # e.g., gilles24.baumann@hotmail.com
-EMAIL_PASSWORD = "your_email_password"
-SMTP_SERVER = "smtp-mail.outlook.com"
-SMTP_PORT = 587
-RECIPIENT_ADDRESS = "gilles24.baumann@hotmail.com"
 
 def get_heartbeat_timestamp(heartbeat_file):
     """
@@ -48,7 +37,10 @@ def get_heartbeat_timestamp(heartbeat_file):
 def run_scraper(script):
     """Run the given scraper script as a subprocess and return the process object."""
     return subprocess.Popen(
-        ["python", script],
+        ["python3", script],
+        # Remove redirection so the subprocess uses the parent’s stdout/stderr:
+        # stdout=subprocess.PIPE,
+        # stderr=subprocess.PIPE,
         universal_newlines=True
     )
 
@@ -77,64 +69,18 @@ def monitor_process(process, heartbeat_file):
                 process.kill()
                 return -1
             else:
+                # Display a live update with the spinner and the age of the heartbeat.
                 sys.stdout.write(
                     f"\rHeartbeat OK: last update {elapsed:.0f}s ago {next(spinner)}"
                 )
                 sys.stdout.flush()
         else:
+            # No valid heartbeat yet; display waiting message with spinner.
             sys.stdout.write(
                 f"\rWaiting for heartbeat in {heartbeat_file}... {next(spinner)}"
             )
             sys.stdout.flush()
         time.sleep(1)
-
-def get_status():
-    """
-    Returns a status string with the last heartbeat timestamps for both scrapers.
-    """
-    status = "Hourly Update from Watchdog:\n\n"
-    now = datetime.utcnow()
-    prod_ts = get_heartbeat_timestamp(PRODUCT_HEARTBEAT_FILE)
-    rev_ts = get_heartbeat_timestamp(REVIEW_HEARTBEAT_FILE)
-    if prod_ts:
-        elapsed_prod = (now - prod_ts).total_seconds()
-        status += f"Product scraper last heartbeat: {prod_ts.isoformat()} ({elapsed_prod:.0f} seconds ago)\n"
-    else:
-        status += "Product scraper heartbeat not available.\n"
-    if rev_ts:
-        elapsed_rev = (now - rev_ts).total_seconds()
-        status += f"Review scraper last heartbeat: {rev_ts.isoformat()} ({elapsed_rev:.0f} seconds ago)\n"
-    else:
-        status += "Review scraper heartbeat not available.\n"
-    return status
-
-def send_update_email(status_message):
-    """
-    Sends an email update with the provided status_message.
-    """
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = "Hourly Update from Watchdog"
-        msg["From"] = EMAIL_ADDRESS
-        msg["To"] = RECIPIENT_ADDRESS
-        msg.set_content(status_message)
-        
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()  # Secure the connection
-            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
-        print("\nSent update email.")
-    except Exception as e:
-        print(f"\nFailed to send update email: {e}")
-
-def hourly_update():
-    """
-    Runs in a background thread. Sleeps for one hour, then sends an update email.
-    """
-    while True:
-        time.sleep(3600)  # Sleep for one hour.
-        status = get_status()
-        send_update_email(status)
 
 def orchestrate_scraping():
     """
@@ -169,15 +115,7 @@ def orchestrate_scraping():
     print("\nReview scraper finished normally. Exiting orchestrator.")
 
 def main():
-    # Send an initial update email.
-    initial_status = get_status()
-    send_update_email("Initial Update from Watchdog:\n\n" + initial_status)
-    
-    # Start the hourly update thread (daemon thread so it will exit when the main thread does).
-    update_thread = threading.Thread(target=hourly_update, daemon=True)
-    update_thread.start()
-    
-    # Run the orchestrator.
+    # You can wrap orchestrate_scraping in a loop if you wish to continue running after completion.
     orchestrate_scraping()
 
 if __name__ == "__main__":
