@@ -26,12 +26,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
 ]
 
-# --- Proxy List (Beispiel, anpassen!)
-PROXIES = [
-    "https://udbe23a9d570b05ce-zone-custom:udbe23a9d570b05ce@ip1:2334",
-    "https://udbe23a9d570b05ce-zone-custom:udbe23a9d570b05ce@ip2:2334",
-    # Füge hier weitere Proxies hinzu
-]
+
 
 # --- Files for Heartbeat and Progress ---
 HEARTBEAT_FILE = "heartbeat_products.txt"
