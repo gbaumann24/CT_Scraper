@@ -26,8 +26,9 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
 ]
 
-# --- Proxy List (Beispiel, anpassen!)
+# --- Proxy List (Beispiel – passe die Proxys an) ---
 PROXIES = [
+   
 ]
 
 # --- Files for Heartbeat and Progress ---
@@ -58,14 +59,13 @@ def simulate_human_interaction(driver):
     """
     Simuliert menschliches Scrollen, um Lazy Loading auszulösen.
     """
-    scroll_pause = random.uniform(0.5, 1.5)
+    scroll_pause = random.uniform(1.5, 2.5)
     last_height = driver.execute_script("return document.body.scrollHeight")
     for _ in range(random.randint(3, 6)):
         driver.execute_script("window.scrollBy(0, {});".format(random.randint(100, 300)))
         time.sleep(scroll_pause)
-    # Scroll ans Ende, um sicherzustellen, dass alle Elemente geladen werden.
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(random.uniform(2, 4))
+    time.sleep(random.uniform(4, 6))
 
 def get_driver():
     options = uc.ChromeOptions()
@@ -76,47 +76,39 @@ def get_driver():
     options.add_argument("--window-size=1280,720")
     options.add_argument("--incognito")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    
-    # Zusätzliche experimentelle Optionen, um Header zu variieren
+    # Zusätzliche experimentelle Option: Zufällige Accept-Language
     accept_languages = random.choice(["en-US,en;q=0.9", "de-DE,de;q=0.9", "fr-FR,fr;q=0.9"])
     options.add_experimental_option("prefs", {"intl.accept_languages": accept_languages})
-    
-    # User-Agent rotieren
     options.add_argument("--user-agent=" + random.choice(USER_AGENTS))
-    
     # Proxy rotieren, falls vorhanden
     if PROXIES:
         proxy = random.choice(PROXIES)
         print("Using proxy:", proxy)
         options.add_argument(f"--proxy-server={proxy}")
-    
-    # Setze Browser-Binary (hier Chromium, ggf. anpassen)
+    # Setze Browser-Binary (hier Chromium)
     options.binary_location = "/usr/bin/chromium-browser"
-    
     driver = uc.Chrome(version_main=133, options=options, browser_executable_path=options.binary_location)
-    # Wartezeit zur Initialisierung
-    time.sleep(20)
+    time.sleep(20)  # Wartezeit zur Initialisierung
     return driver
 
 def limited_get(url, driver, max_wait=36000):
     """
-    Lädt eine URL mit Selenium. Bei Rate-Limiting oder CAPTCHA wird ein exponentieller Backoff (bis max_wait Sekunden) durchgeführt.
+    Lädt eine URL mit Selenium. Bei Erkennung von Rate-Limiting oder CAPTCHA wird ein exponentieller Backoff (bis max_wait Sekunden) durchgeführt.
     """
     attempt = 1
     total_wait = 0
     while True:
         try:
             print(f"Requesting: {url} (attempt {attempt})")
-            # Lösche vorher evtl. alte Cookies, um frische Sessions zu simulieren.
-            driver.delete_all_cookies()
+            driver.delete_all_cookies()  # Frische Session simulieren
             driver.get(url)
             simulate_human_interaction(driver)
-            time.sleep(random.uniform(2, 4))
+            # Warte 10-15 Sekunden, um der Seite genügend Zeit zu geben, alle Inhalte zu laden
+            time.sleep(random.uniform(10, 15))
             page_source = driver.page_source
 
-            # Prüfe auf Rate-Limiting
             if "too many requests" in page_source.lower() or "429" in page_source:
-                delay = min(60 * (2 ** (attempt - 1)), max_wait)
+                delay = min(120 * (2 ** (attempt - 1)), max_wait)
                 total_wait += delay
                 if total_wait >= max_wait:
                     print(f"Maximale Wartezeit von {max_wait} Sekunden erreicht. Abbruch bei {url}.")
@@ -126,9 +118,8 @@ def limited_get(url, driver, max_wait=36000):
                 attempt += 1
                 continue
 
-            # Prüfe auf CAPTCHA
             if "captcha" in page_source.lower() or "i am not a robot" in page_source.lower():
-                delay = attempt * 5
+                delay = min(60 * (2 ** (attempt - 1)), max_wait)
                 total_wait += delay
                 if total_wait >= max_wait:
                     print(f"Maximale Wartezeit von {max_wait} Sekunden erreicht beim CAPTCHA. Abbruch bei {url}.")
@@ -141,7 +132,7 @@ def limited_get(url, driver, max_wait=36000):
             return page_source
 
         except Exception as e:
-            delay = attempt * 5
+            delay = min(60 * (2 ** (attempt - 1)), max_wait)
             total_wait += delay
             if total_wait >= max_wait:
                 print(f"Maximale Wartezeit von {max_wait} Sekunden erreicht bei Exception. Abbruch bei {url}.")
@@ -182,7 +173,7 @@ def get_product_links_from_page(url, driver):
             else:
                 absolute_url = href
             product_links.append(absolute_url)
-    delay = random.uniform(5, 10)
+    delay = random.uniform(10, 15)
     print(f"Sleeping for {delay:.2f} seconds to throttle requests.")
     time.sleep(delay)
     return list(set(product_links))
@@ -227,8 +218,8 @@ def scrape_all_categories_products():
             print(f"\nScraping category: {cat_text}\nURL: {cat_href}")
             success = False
             retry_count = 0
-            base_delay = 5
-            max_delay = 60
+            base_delay = 10    # initial delay increased
+            max_delay = 600    # maximum delay increased (600 seconds = 10 minutes; adjust if needed)
             while not success:
                 update_heartbeat(idx)
                 try:
