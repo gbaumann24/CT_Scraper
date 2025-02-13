@@ -28,8 +28,7 @@ USER_AGENTS = [
 
 # --- Proxy List (Beispiel – passe die Proxys an) ---
 PROXIES = [
-    # Füge hier deine Proxy-URLs ein, z. B.
-    #"https://udbe23a9d570b05ce-zone-custom:udbe23a9d570b05ce@ip1:2334",
+    # Beispiel: "https://udbe23a9d570b05ce-zone-custom:udbe23a9d570b05ce@ip1:2334",
 ]
 
 # --- Files for Heartbeat and Progress ---
@@ -61,7 +60,6 @@ def simulate_human_interaction(driver):
     Simuliert menschliches Scrollen, um Lazy Loading auszulösen.
     """
     scroll_pause = random.uniform(1.5, 2.5)
-    # Mehrfache kleine Scrolls, um echtes Verhalten zu imitieren
     for _ in range(random.randint(3, 6)):
         driver.execute_script("window.scrollBy(0, {});".format(random.randint(100, 300)))
         time.sleep(scroll_pause)
@@ -77,14 +75,10 @@ def get_driver():
     options.add_argument("--window-size=1280,720")
     options.add_argument("--incognito")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    # Experimentelle Option: zufällige Accept-Language
+    # Zufällige Accept-Language einstellen
     accept_languages = random.choice(["en-US,en;q=0.9", "de-DE,de;q=0.9", "fr-FR,fr;q=0.9"])
     options.add_experimental_option("prefs", {"intl.accept_languages": accept_languages})
     options.add_argument("--user-agent=" + random.choice(USER_AGENTS))
-    
-    # Zusätzliche Optionen zur Stealth-Optimierung:
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
     
     # Proxy rotieren, falls vorhanden
     if PROXIES:
@@ -92,15 +86,16 @@ def get_driver():
         print("Using proxy:", proxy)
         options.add_argument(f"--proxy-server={proxy}")
     
-    # Setze den Pfad zur Browser-Binary (hier Chromium)
+    # Setze Browser-Binary (hier Chromium)
     options.binary_location = "/usr/bin/chromium-browser"
     
+    # Starte den Browser; beachte: Die experimentellen Optionen 'excludeSwitches' etc. wurden entfernt!
     driver = uc.Chrome(version_main=133, options=options, browser_executable_path=options.binary_location)
     
-    # Entferne den webdriver-Fingerabdruck
+    # Entferne den navigator.webdriver Fingerabdruck
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     
-    time.sleep(20)
+    time.sleep(20)  # Wartezeit zur Initialisierung
     return driver
 
 def limited_get(url, driver, max_wait=36000):
@@ -230,7 +225,7 @@ def scrape_all_categories_products():
             success = False
             retry_count = 0
             base_delay = 10    # initial delay increased
-            max_delay = 600    # maximum delay increased (600 seconds = 10 minutes; adjust if needed)
+            max_delay = 600    # maximum delay increased (600 seconds = 10 minutes)
             while not success:
                 update_heartbeat(idx)
                 try:
