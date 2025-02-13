@@ -28,7 +28,8 @@ USER_AGENTS = [
 
 # --- Proxy List (Beispiel – passe die Proxys an) ---
 PROXIES = [
-   
+    # Füge hier deine Proxy-URLs ein, z. B.
+    #"https://udbe23a9d570b05ce-zone-custom:udbe23a9d570b05ce@ip1:2334",
 ]
 
 # --- Files for Heartbeat and Progress ---
@@ -60,7 +61,7 @@ def simulate_human_interaction(driver):
     Simuliert menschliches Scrollen, um Lazy Loading auszulösen.
     """
     scroll_pause = random.uniform(1.5, 2.5)
-    last_height = driver.execute_script("return document.body.scrollHeight")
+    # Mehrfache kleine Scrolls, um echtes Verhalten zu imitieren
     for _ in range(random.randint(3, 6)):
         driver.execute_script("window.scrollBy(0, {});".format(random.randint(100, 300)))
         time.sleep(scroll_pause)
@@ -69,31 +70,42 @@ def simulate_human_interaction(driver):
 
 def get_driver():
     options = uc.ChromeOptions()
-    options.headless = True  # Headless-Modus für Server
+    options.headless = True
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--lang=en-US")
     options.add_argument("--window-size=1280,720")
     options.add_argument("--incognito")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    # Zusätzliche experimentelle Option: Zufällige Accept-Language
+    # Experimentelle Option: zufällige Accept-Language
     accept_languages = random.choice(["en-US,en;q=0.9", "de-DE,de;q=0.9", "fr-FR,fr;q=0.9"])
     options.add_experimental_option("prefs", {"intl.accept_languages": accept_languages})
     options.add_argument("--user-agent=" + random.choice(USER_AGENTS))
+    
+    # Zusätzliche Optionen zur Stealth-Optimierung:
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    
     # Proxy rotieren, falls vorhanden
     if PROXIES:
         proxy = random.choice(PROXIES)
         print("Using proxy:", proxy)
         options.add_argument(f"--proxy-server={proxy}")
-    # Setze Browser-Binary (hier Chromium)
+    
+    # Setze den Pfad zur Browser-Binary (hier Chromium)
     options.binary_location = "/usr/bin/chromium-browser"
+    
     driver = uc.Chrome(version_main=133, options=options, browser_executable_path=options.binary_location)
-    time.sleep(20)  # Wartezeit zur Initialisierung
+    
+    # Entferne den webdriver-Fingerabdruck
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    time.sleep(20)
     return driver
 
 def limited_get(url, driver, max_wait=36000):
     """
-    Lädt eine URL mit Selenium. Bei Erkennung von Rate-Limiting oder CAPTCHA wird ein exponentieller Backoff (bis max_wait Sekunden) durchgeführt.
+    Lädt eine URL mit Selenium. Bei Rate-Limiting oder CAPTCHA wird ein exponentieller Backoff (bis max_wait Sekunden) durchgeführt.
     """
     attempt = 1
     total_wait = 0
@@ -103,7 +115,6 @@ def limited_get(url, driver, max_wait=36000):
             driver.delete_all_cookies()  # Frische Session simulieren
             driver.get(url)
             simulate_human_interaction(driver)
-            # Warte 10-15 Sekunden, um der Seite genügend Zeit zu geben, alle Inhalte zu laden
             time.sleep(random.uniform(10, 15))
             page_source = driver.page_source
 
