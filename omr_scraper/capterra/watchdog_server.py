@@ -7,7 +7,7 @@ import itertools
 from datetime import datetime
 
 # --- Script Names and Heartbeat Files ---
-PRODUCT_SCRAPER_SCRIPT = "scrape_capterra_products_seleium_prod.py"
+PRODUCT_SCRAPER_SCRIPT = "scrape_capterra_products_seleium_prod_server.py"
 REVIEW_SCRAPER_SCRIPT  = "scraping_reviews_4.0_prod.py"
 
 PRODUCT_HEARTBEAT_FILE = "heartbeat_products.txt"
