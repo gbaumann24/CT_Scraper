@@ -298,11 +298,19 @@ async function scrapeAllCategoriesProducts() {
 		categories = JSON.parse(categoriesData);
 	} catch (error) {
 		console.error('No categories found in capterra_categories.json or error reading file');
-		return {};
+		process.exit(1);
 	}
+
 	if (!categories || categories.length === 0) {
 		console.log('No categories found in capterra_categories.json');
-		return {};
+		process.exit(1);
+	}
+
+	// Check for the --reverse flag on the command line.
+	const reverseMode = process.argv.includes('--reverse');
+	if (reverseMode) {
+		console.log('Running in reverse mode: processing categories from end to start.');
+		categories = categories.reverse();
 	}
 	const results = {};
 	const { browser, page } = await getDriver();
