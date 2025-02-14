@@ -96,7 +96,7 @@ async function simulateHumanInteraction(page) {
 // --- Create and configure the Puppeteer browser/page ---
 async function getDriver() {
 	const launchOptions = {
-		headless: false,
+		headless: true,
 		args: ['--disable-gpu', '--lang=en-US', '--window-size=1280,720', '--incognito', '--disable-blink-features=AutomationControlled'],
 	};
 
