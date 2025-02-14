@@ -29,7 +29,7 @@ const USER_AGENTS = [
 ];
 
 // --- Proxy List (if needed) ---
-const PROXIES = ['https://scraperapi:b480f2a59e97d5451f31bf189386028e@proxy-server.scraperapi.com:8001'];
+const PROXIES = [];
 
 // --- Files for Heartbeat and Progress ---
 const HEARTBEAT_FILE = 'heartbeat_products.txt';
@@ -81,8 +81,8 @@ async function simulateHumanInteraction(page) {
 		);
 		await sleep(waitTime);
 	}
-	// Scroll to bottom.
-	await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+	// // Scroll to bottom.
+	// await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 	// Wait between 5 and 10 seconds.
 	await sleep(5000 + Math.random() * 5000);
 }
@@ -183,7 +183,11 @@ async function limitedGet(url, page, maxWait = 36000) {
 				attempt++;
 				continue;
 			}
-			if (pageContent.toLowerCase().includes('captcha') || pageContent.toLowerCase().includes('i am not a robot')) {
+			const $ = cheerio.load(pageContent);
+			// Check for reCAPTCHA elements (modify selectors as needed)
+			const recaptchaElement = $('div.g-recaptcha, iframe[src*="recaptcha"]');
+			if (recaptchaElement.length > 0) {
+				console.log('CAPTCHA challenge detected on the page.');
 				const delaySec = Math.min(60 * Math.pow(2, attempt - 1), maxWait);
 				totalWait += delaySec;
 				if (totalWait >= maxWait) {
@@ -238,11 +242,15 @@ async function getProductLinksFromPage(url, page) {
 		console.log(`Failed to load page ${url}.`);
 		return [];
 	}
-	if (pageContent.toLowerCase().includes('captcha') || pageContent.toLowerCase().includes('i am not a robot')) {
-		console.log(`CAPTCHA detected on page ${url}. Skipping this page.`);
+
+	// Refined captcha detection using Cheerio:
+	const $ = cheerio.load(pageContent);
+	const recaptchaElement = $('div.g-recaptcha, iframe[src*="recaptcha"]');
+	if (recaptchaElement.length > 0) {
+		console.log(`CAPTCHA challenge detected on page ${url}. Skipping this page.`);
 		return [];
 	}
-	const $ = cheerio.load(pageContent);
+
 	const linksSet = new Set();
 	$('a[href]').each((i, elem) => {
 		const href = $(elem).attr('href') || '';
@@ -254,7 +262,8 @@ async function getProductLinksFromPage(url, page) {
 			linksSet.add(absoluteUrl);
 		}
 	});
-	// Delay between page requests: 25-35 seconds.
+
+	// Wait between page requests: 25-35 seconds.
 	const delay = 25000 + Math.random() * 10000;
 	console.log(`Sleeping for ${(delay / 1000).toFixed(2)} seconds to throttle requests.`);
 	await sleep(delay);
