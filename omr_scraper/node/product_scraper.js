@@ -2,17 +2,19 @@
 
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker');
 const fs = require('fs');
 const cheerio = require('cheerio');
 
 puppeteer.use(StealthPlugin());
+puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
 
 // --- Helper: Sleep ---
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// --- Configuration: User Agents (for logging only) ---
+// --- Configuration: User Agents ---
 const USER_AGENTS = [
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0',
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.3 Safari/605.1.15',
@@ -26,14 +28,14 @@ const USER_AGENTS = [
 	'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
 ];
 
-// --- Proxy List (Example – adjust your proxies here) ---
+// --- Proxy List (if needed) ---
 const PROXIES = [
 	// Example: "https://user:password@ip:port",
 ];
 
 // --- Files for Heartbeat and Progress ---
 const HEARTBEAT_FILE = 'heartbeat_products.txt';
-const PROGRESS_FILE = 'progress_products.txt'; // Progress file for product scraper
+const PROGRESS_FILE = 'progress_products.txt';
 
 // --- Update heartbeat file ---
 function updateHeartbeat(categoryIndex) {
@@ -53,7 +55,7 @@ function getStartIndex() {
 		try {
 			const content = fs.readFileSync(PROGRESS_FILE, 'utf8').trim();
 			const index = parseInt(content, 10);
-			return index + 1; // resume from the next category
+			return isNaN(index) ? 0 : index + 1;
 		} catch (err) {
 			console.error('Error reading progress file:', err);
 		}
@@ -61,19 +63,17 @@ function getStartIndex() {
 	return 0;
 }
 
-// --- Simulate human-like scrolling to trigger lazy loading ---
+// --- Simulate human-like scrolling (with increased delays) ---
 async function simulateHumanInteraction(page) {
-	// Choose a random number of scroll events between 3 and 6
-	const iterations = Math.floor(Math.random() * 4) + 3; // 3 to 6 times
-
+	// Random scroll events: 3 to 6 times.
+	const iterations = Math.floor(Math.random() * 4) + 3;
 	for (let i = 0; i < iterations; i++) {
-		// Random wait time between 1000ms and 3000ms before each scroll
+		// Wait between 1 and 3 seconds before each scroll.
 		const waitTime = 1000 + Math.random() * 2000;
-		// Random scroll distance between 100 and 300 pixels
+		// Scroll distance: between 100 and 300 pixels.
 		const scrollDistance = 100 + Math.random() * 200;
-		// Random direction: 80% chance to scroll down, 20% chance to scroll up
+		// 80% chance to scroll down, 20% chance up.
 		const direction = Math.random() < 0.8 ? 1 : -1;
-
 		await page.evaluate(
 			(distance, direction) => {
 				window.scrollBy(0, distance * direction);
@@ -81,38 +81,16 @@ async function simulateHumanInteraction(page) {
 			scrollDistance,
 			direction
 		);
-
 		await sleep(waitTime);
 	}
-
-	// Finally, scroll to the bottom of the page
+	// Scroll to bottom.
 	await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-	// Wait for a random duration between 5000 and 10000 ms before proceeding
+	// Wait between 5 and 10 seconds.
 	await sleep(5000 + Math.random() * 5000);
 }
 
-// --- Create and configure the Puppeteer browser/page ---
-async function getDriver() {
-	const launchOptions = {
-		headless: true,
-		args: ['--disable-gpu', '--lang=en-US', '--window-size=1280,720', '--incognito', '--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
-	};
-
-	// Set a random user agent
-	const userAgent = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-
-	// Rotate proxy if available
-	if (PROXIES.length > 0) {
-		const proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
-		console.log('Using proxy:', proxy);
-		launchOptions.args.push(`--proxy-server=${proxy}`);
-	}
-
-	const browser = await puppeteer.launch(launchOptions);
-	const page = await browser.newPage();
-	await page.setUserAgent(userAgent);
-
-	// Set extra HTTP headers with more complex details
+// --- Set complex headers ---
+async function setComplexHeaders(page) {
 	const acceptLanguages = ['en-US,en;q=0.9', 'de-DE,de;q=0.9', 'fr-FR,fr;q=0.9'];
 	const selectedAcceptLanguage = acceptLanguages[Math.floor(Math.random() * acceptLanguages.length)];
 	await page.setExtraHTTPHeaders({
@@ -123,8 +101,31 @@ async function getDriver() {
 		Referer: 'https://www.google.com/',
 		'Accept-Encoding': 'gzip, deflate, br',
 	});
+}
 
-	// Wait for the browser to fully initialize
+// --- Create and configure the Puppeteer browser/page ---
+async function getDriver() {
+	const launchOptions = {
+		headless: true,
+		args: ['--disable-gpu', '--lang=en-US', '--window-size=1280,720', '--incognito', '--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
+	};
+
+	// Choose a random user agent.
+	const userAgent = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
+	// Rotate proxy if available.
+	if (PROXIES.length > 0) {
+		const proxy = PROXIES[Math.floor(Math.random() * PROXIES.length)];
+		console.log('Using proxy:', proxy);
+		launchOptions.args.push(`--proxy-server=${proxy}`);
+	}
+
+	const browser = await puppeteer.launch(launchOptions);
+	const page = await browser.newPage();
+	await page.setUserAgent(userAgent);
+	await setComplexHeaders(page);
+
+	// Wait for browser initialization.
 	await sleep(20000);
 	return { browser, page };
 }
@@ -136,11 +137,10 @@ async function limitedGet(url, page, maxWait = 36000) {
 	while (true) {
 		try {
 			console.log(`Requesting: ${url} (attempt ${attempt})`);
-			// Capture the response from page.goto
 			const response = await page.goto(url, { waitUntil: 'networkidle2' });
 			if (response) {
 				const status = response.status();
-				// Immediately back off if a rate-limit status is returned
+				// Immediately back off if a rate-limit status is returned.
 				if (status === 403 || status === 429) {
 					const delaySec = Math.min(120 * Math.pow(2, attempt - 1), maxWait);
 					totalWait += delaySec;
@@ -155,24 +155,24 @@ async function limitedGet(url, page, maxWait = 36000) {
 				}
 			}
 
-			// Dismiss cookie popover if it exists
+			// Dismiss cookie popover if it exists.
 			try {
-				const cookieButtonSelector = '#onetrust-accept-btn-handler'; // Use the id selector
+				const cookieButtonSelector = '#onetrust-accept-btn-handler';
 				await page.waitForSelector(cookieButtonSelector, { timeout: 5000 });
 				console.log('Cookie popover detected. Dismissing it.');
 				await page.click(cookieButtonSelector);
-				await sleep(2000); // Wait for the popup to disappear
+				await sleep(2000);
 			} catch (err) {
-				// If the popup doesn't appear within 5 seconds, continue normally.
+				// If not found, continue.
 			}
 
 			await simulateHumanInteraction(page);
-			// Increase the waiting time between requests: 25-35 seconds
+			// Increase waiting time between requests: 25-35 seconds.
 			const delay = 25000 + Math.random() * 10000;
 			await sleep(delay);
 			const pageContent = await page.content();
 
-			// Check if page content indicates rate limiting or CAPTCHA
+			// Check for indications of rate limiting or CAPTCHA in page content.
 			if (pageContent.toLowerCase().includes('too many requests')) {
 				const delaySec = Math.min(120 * Math.pow(2, attempt - 1), maxWait);
 				totalWait += delaySec;
@@ -185,7 +185,6 @@ async function limitedGet(url, page, maxWait = 36000) {
 				attempt++;
 				continue;
 			}
-
 			if (pageContent.toLowerCase().includes('captcha') || pageContent.toLowerCase().includes('i am not a robot')) {
 				const delaySec = Math.min(60 * Math.pow(2, attempt - 1), maxWait);
 				totalWait += delaySec;
@@ -206,13 +205,32 @@ async function limitedGet(url, page, maxWait = 36000) {
 				console.log(`Max wait time of ${maxWait} seconds reached on exception. Aborting ${url}.`);
 				break;
 			}
-			console.log(`Error loading ${url} on attempt ${attempt}: ${error}. Waiting for ${delaySec} seconds before next attempt...`);
+			console.log(`Error loading ${url} on attempt ${attempt}: ${error.message}. Waiting for ${delaySec} seconds before next attempt...`);
 			await sleep(delaySec * 1000);
 			attempt++;
 		}
 	}
 	console.log(`Failed to load ${url} after waiting a total of ${totalWait} seconds.`);
 	return null;
+}
+
+// --- Extract the maximum number of pages from pagination ---
+function getMaxPages(html) {
+	const $ = cheerio.load(html);
+	const pagination = $('ul.pagination');
+	if (!pagination.length) return 1;
+	let maxPage = 1;
+	pagination.find('a[href]').each((i, elem) => {
+		const href = $(elem).attr('href') || '';
+		const match = href.match(/page=(\d+)/);
+		if (match && match[1]) {
+			const num = parseInt(match[1], 10);
+			if (num > maxPage) {
+				maxPage = num;
+			}
+		}
+	});
+	return maxPage;
 }
 
 // --- Get product links from a single page ---
@@ -238,7 +256,7 @@ async function getProductLinksFromPage(url, page) {
 			linksSet.add(absoluteUrl);
 		}
 	});
-	// Increase delay between page requests: 25-35 seconds
+	// Delay between page requests: 25-35 seconds.
 	const delay = 25000 + Math.random() * 10000;
 	console.log(`Sleeping for ${(delay / 1000).toFixed(2)} seconds to throttle requests.`);
 	await sleep(delay);
@@ -306,7 +324,7 @@ async function scrapeAllCategoriesProducts() {
 				const productLinks = await getCategoryProductLinks(catHref, page);
 				results[catText] = productLinks;
 				console.log(`Found ${productLinks.length} product links for '${catText}'`);
-				// Append each found link to the CSV file
+				// Append each found link to the CSV file.
 				for (const link of productLinks) {
 					const row = `"${catText.replace(/"/g, '""')}","${link}"\n`;
 					fs.appendFileSync(csvFilePath, row);
