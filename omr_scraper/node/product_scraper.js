@@ -292,6 +292,7 @@ async function getCategoryProductLinks(categoryLink, page) {
 
 // --- Main function: Scrape all categories and their products ---
 async function scrapeAllCategoriesProducts() {
+	// Read categories from JSON file.
 	let categories;
 	try {
 		const categoriesData = fs.readFileSync('capterra_categories.json', 'utf8');
@@ -300,27 +301,60 @@ async function scrapeAllCategoriesProducts() {
 		console.error('No categories found in capterra_categories.json or error reading file');
 		process.exit(1);
 	}
-
 	if (!categories || categories.length === 0) {
 		console.log('No categories found in capterra_categories.json');
 		process.exit(1);
 	}
 
-	// Check for the --reverse flag on the command line.
-	const reverseMode = process.argv.includes('--reverse');
-	if (reverseMode) {
-		console.log('Running in reverse mode: processing categories from end to start.');
-		categories = categories.reverse();
+	// Parse command-line arguments for startFrom and direction.
+	const args = process.argv.slice(2);
+	let startFromIndex = 0;
+	let direction = 'forward'; // default direction
+
+	args.forEach((arg) => {
+		if (arg.startsWith('--startFrom=')) {
+			const value = arg.split('=')[1];
+			if (value.toLowerCase() === 'half') {
+				startFromIndex = Math.floor(categories.length / 2);
+			} else {
+				startFromIndex = parseInt(value, 10);
+				if (isNaN(startFromIndex)) {
+					console.error(`Invalid value for --startFrom: ${value}`);
+					process.exit(1);
+				}
+			}
+		} else if (arg.startsWith('--direction=')) {
+			const value = arg.split('=')[1].toLowerCase();
+			if (value === 'forward' || value === 'backward') {
+				direction = value;
+			} else {
+				console.error(`Invalid value for --direction: ${value}`);
+				process.exit(1);
+			}
+		}
+	});
+
+	// Adjust categories based on the startFrom index and direction.
+	if (direction === 'forward') {
+		// Process categories from startFromIndex to the end.
+		categories = categories.slice(startFromIndex);
+		console.log(`Processing categories from index ${startFromIndex} to end (forward).`);
+	} else if (direction === 'backward') {
+		// Process categories from startFromIndex down to 0.
+		// Slice from 0 to startFromIndex+1 and then reverse the order.
+		categories = categories.slice(0, startFromIndex + 1).reverse();
+		console.log(`Processing categories from index ${startFromIndex} down to start (backward).`);
 	}
 	const results = {};
 	const { browser, page } = await getDriver();
-	const startIndex = getStartIndex();
-	console.log(`Resuming from category index: ${startIndex}`);
+	// If the --startFrom flag is provided, ignore the progress file and resume from 0.
+	const resumeIndex = process.argv.some(arg => arg.startsWith('--startFrom=')) ? 0 : getStartIndex();
+	console.log(`Resuming from category index: ${resumeIndex}`);
 	const csvFilePath = 'capterra_products.csv';
-	if (startIndex === 0) {
+	if (resumeIndex === 0) {
 		fs.writeFileSync(csvFilePath, 'Category,Product Link\n');
 	}
-	for (let idx = startIndex; idx < categories.length; idx++) {
+	for (let idx = resumeIndex; idx < categories.length; idx++) {
 		const cat = categories[idx];
 		updateHeartbeat(idx);
 		let catText = cat.text;
