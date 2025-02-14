@@ -29,9 +29,7 @@ const USER_AGENTS = [
 ];
 
 // --- Proxy List (if needed) ---
-const PROXIES = [
-	// Example: "https://user:password@ip:port",
-];
+const PROXIES = ['https://scraperapi:b480f2a59e97d5451f31bf189386028e@proxy-server.scraperapi.com:8001'];
 
 // --- Files for Heartbeat and Progress ---
 const HEARTBEAT_FILE = 'heartbeat_products.txt';
