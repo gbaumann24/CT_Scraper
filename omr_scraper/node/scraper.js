@@ -97,7 +97,7 @@ async function simulateHumanInteraction(page) {
 async function getDriver() {
 	const launchOptions = {
 		headless: true,
-		args: ['--disable-gpu', '--lang=en-US', '--window-size=1280,720', '--incognito', '--disable-blink-features=AutomationControlled'],
+		args: ['--disable-gpu', '--lang=en-US', '--window-size=1280,720', '--incognito', '--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
 	};
 
 	// Set a random user agent
