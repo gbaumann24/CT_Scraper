@@ -15,8 +15,8 @@ puppeteer.use(StealthPlugin());
 // --------------------------
 const HEARTBEAT_FILE = 'heartbeat_reviews.txt';
 const PROGRESS_FILE = 'progress_reviews.txt';
-const INPUT_CSV = 'capterra_products_A_I.csv';
-const OUTPUT_CSV = 'capterra_reviews.csv';
+const INPUT_CSV = 'capterra_products_A_Z_matched_first_half.csv';
+const OUTPUT_CSV = 'capterra_reviews_matched.csv';
 
 const fieldnames = [
 	'ToolName',
@@ -62,6 +62,27 @@ function getStartIndex() {
 
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// New helper function to determine if a review is older than two years.
+// Reviews exactly "vor zwei Jahren" are allowed.
+function isReviewOlderThan2Years(reviewDate) {
+	if (!reviewDate) return false;
+	// Check if the review date mentions years
+	const yearsMatch = reviewDate.match(/vor\s+(\d+)\s+Jahren?/i);
+	if (yearsMatch) {
+		const years = parseInt(yearsMatch[1], 10);
+		// Only reviews with more than 2 years are too old.
+		return years > 2;
+	}
+	// Check if the review date mentions months (convert months to years)
+	const monthsMatch = reviewDate.match(/vor\s+(\d+)\s+Monaten/i);
+	if (monthsMatch) {
+		const months = parseInt(monthsMatch[1], 10);
+		// More than 24 months (i.e. older than 2 years) are too old.
+		return months > 24;
+	}
+	return false;
 }
 
 // --------------------------
@@ -247,9 +268,9 @@ function parseIndustryEmployee(rawIE) {
 	rawIE = rawIE.replace(/’/g, '');
 	if (rawIE.includes(',')) {
 		const parts = rawIE.split(',', 2);
-		return { 
-			industry: parts[0].trim(), 
-			employee: parts[1].replace(/Mitarbeiter/g, '').trim() 
+		return {
+			industry: parts[0].trim(),
+			employee: parts[1].replace(/Mitarbeiter/g, '').trim(),
 		};
 	}
 	return { industry: rawIE.trim(), employee: '' };
@@ -352,11 +373,21 @@ async function main() {
 		console.log(`\nProcessing product link: ${productLink} (Category: ${category})`);
 
 		try {
-			// Fetch the main page
-			const pageContent = await fetchPage(productLink, page);
+			// Fetch the main product page
+			let pageContent = await fetchPage(productLink, page);
 			if (!pageContent) {
 				console.log(`Skipping ${productLink} due to fetch issues.`);
 				continue;
+			}
+
+			// If the "Neueste Bewertungen" button exists, click it to sort by newest reviews.
+			const newestReviewsSelector = 'label.form-check-label[for="opt_most_recent"]';
+			if (await page.$(newestReviewsSelector)) {
+				console.log("Clicking 'Neueste Bewertungen' button to sort reviews.");
+				await page.click(newestReviewsSelector);
+				await sleep(2000);
+				// Refresh page content after sorting.
+				pageContent = await page.content();
 			}
 
 			// Extract the tool name from <h1.h3.mb-1>
@@ -365,12 +396,26 @@ async function main() {
 				return el ? el.innerText.replace('Erfahrungen', '').trim() : '';
 			});
 
-			let reviews = extractReviews(pageContent);
-			console.log(`Found ${reviews.length} reviews on the first page.`);
-			const maxPage = extractPaginationInfo(pageContent);
+			// --------------------------
+			// REVIEW EXTRACTION WITH DATE CHECK
+			// --------------------------
+			let allReviews = [];
+			let stopProduct = false;
 
-			// Handle pagination
-			if (maxPage > 1) {
+			// Process first page reviews
+			let reviewsFromPage = extractReviews(pageContent);
+			for (const review of reviewsFromPage) {
+				if (isReviewOlderThan2Years(review['Review Date'])) {
+					console.log(`Encountered review older than two years ("${review['Review Date']}"). Skipping remaining reviews for this product.`);
+					stopProduct = true;
+					break;
+				}
+				allReviews.push(review);
+			}
+
+			// Check pagination only if we haven't hit an old review already.
+			const maxPage = extractPaginationInfo(pageContent);
+			if (!stopProduct && maxPage > 1) {
 				for (let p = 2; p <= maxPage; p++) {
 					const pageUrl = `${productLink}?page=${p}`;
 					console.log(`Processing pagination page: ${pageUrl}`);
@@ -380,14 +425,21 @@ async function main() {
 						continue;
 					}
 					const pagReviews = extractReviews(pagContent);
-					console.log(`Found ${pagReviews.length} reviews on page ${p}.`);
-					reviews = reviews.concat(pagReviews);
+					for (const review of pagReviews) {
+						if (isReviewOlderThan2Years(review['Review Date'])) {
+							console.log(`Encountered review older than two years ("${review['Review Date']}") on page ${p}. Stopping further review scraping for this product.`);
+							stopProduct = true;
+							break;
+						}
+						allReviews.push(review);
+					}
+					if (stopProduct) break;
 					await sleep(Math.random() * (6000 - 3000) + 3000);
 				}
 			}
 
 			// Process and write each review
-			for (const review of reviews) {
+			for (const review of allReviews) {
 				review['ToolName'] = toolName;
 				review['Category'] = category;
 				review['Product Link'] = productLink;
@@ -434,7 +486,6 @@ async function main() {
 	await browser.close();
 	console.log(`\nExtraction complete. Reviews saved to '${OUTPUT_CSV}'.`);
 }
-
 main().catch((err) => {
 	console.error('Fatal error:', err);
 });
