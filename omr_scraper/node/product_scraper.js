@@ -347,14 +347,13 @@ async function scrapeAllCategoriesProducts() {
 	}
 	const results = {};
 	const { browser, page } = await getDriver();
-	// If the --startFrom flag is provided, ignore the progress file and resume from 0.
-	const resumeIndex = process.argv.some(arg => arg.startsWith('--startFrom=')) ? 0 : getStartIndex();
-	console.log(`Resuming from category index: ${resumeIndex}`);
+	const startIndex = getStartIndex();
+	console.log(`Resuming from category index: ${startIndex}`);
 	const csvFilePath = 'capterra_products.csv';
-	if (resumeIndex === 0) {
+	if (startIndex === 0) {
 		fs.writeFileSync(csvFilePath, 'Category,Product Link\n');
 	}
-	for (let idx = resumeIndex; idx < categories.length; idx++) {
+	for (let idx = startIndex; idx < categories.length; idx++) {
 		const cat = categories[idx];
 		updateHeartbeat(idx);
 		let catText = cat.text;

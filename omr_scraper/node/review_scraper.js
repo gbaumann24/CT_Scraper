@@ -16,7 +16,7 @@ puppeteer.use(StealthPlugin());
 const HEARTBEAT_FILE = 'heartbeat_reviews.txt';
 const PROGRESS_FILE = 'progress_reviews.txt';
 const INPUT_CSV = 'capterra_products_A_Z_matched_first_half.csv';
-const OUTPUT_CSV = 'capterra_reviews_matched.csv';
+const OUTPUT_CSV = 'capterra_reviews_matched_A_Z_first_half_from_apple_pay_onwards.csv';
 
 const fieldnames = [
 	'ToolName',
